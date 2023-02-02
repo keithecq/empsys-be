@@ -37,14 +37,19 @@ public class EmployeeServiceImpl implements EmployeeService{
         String decimal;
         String number = csvRecord.get("salary");
         try {
+            Float salary = Float.parseFloat(number);
+            if (salary < 0) {
+                throw new IncorrectSalaryException(HttpStatus.BAD_REQUEST, "Incorrect SalaryFormat (Salary less than 0) Please double check your record at Row : " + csvRecord.getRecordNumber() + csvRecord);
+            }
+
             if (number.contains(".")) {
                 decimal = number.split("\\.")[1];
                 if (decimal.length() == 1) {
                     return false;
                 }
-                throw new IncorrectSalaryException(HttpStatus.BAD_REQUEST, "Incorrect Salary Please double check your record at Row : " + csvRecord.getRecordNumber());
+                throw new IncorrectSalaryException(HttpStatus.BAD_REQUEST, "Incorrect SalaryFormat (More than 1 Decimal Point) Please double check your record at Row : " + csvRecord.getRecordNumber() + csvRecord);
             }
-            throw new IncorrectSalaryException(HttpStatus.BAD_REQUEST, "Incorrect Salary Please double check your record at Row : " + csvRecord.getRecordNumber());
+            throw new IncorrectSalaryException(HttpStatus.BAD_REQUEST, "Incorrect SalaryFormat (No Decimals) Please double check your record at Row : " + csvRecord.getRecordNumber() + csvRecord);
 
         } catch (IncorrectSalaryException e) {
             logger.error(
@@ -73,9 +78,11 @@ public class EmployeeServiceImpl implements EmployeeService{
                             record.get("name"),
                             Double.parseDouble(record.get("salary"))
                     );
-                    if (emp.getSalary() < 0 || checkSalaryFormatMoreThanOneDecimal(record)) {
+                    //Salary validation
+                    checkSalaryFormatMoreThanOneDecimal(record);
+                    
 
-                    }
+                    //If validation passes add employee to database
                     empList.add(emp);
                 }
                 numOfRows = empList.size();
