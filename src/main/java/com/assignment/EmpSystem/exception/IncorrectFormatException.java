@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @Setter
 @AllArgsConstructor
-public class IncorrectSalaryException extends Exception {
+public class IncorrectFormatException extends Exception {
     private HttpStatus responseStatus;
     private String errorMessage;
 }
