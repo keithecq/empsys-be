@@ -78,6 +78,7 @@ public class EmployeeServiceImpl implements EmployeeService{
                 List<Employee> empList = new ArrayList<>();
                 for (CSVRecord record : records) {
 
+                    //Validation: Check if there are 4 columns in the row
                     if (record.toMap().values().size() != 4) {
                         throw new IncorrectFormatException(HttpStatus.BAD_REQUEST, "Incorrect Format (row has missing columns) Please double check your record at Row : " + record.getRecordNumber() + " " + record.toMap().values());
                     }
@@ -95,10 +96,12 @@ public class EmployeeServiceImpl implements EmployeeService{
                     //Validation: Salary
                     checkSalaryFormatMoreThanOneDecimal(record);
 
-                    //If validation passes add employee to database
+                    //If all validations pass adds employee to employee list
                     empList.add(emp);
                 }
                 numOfRows = empList.size();
+
+                //Add all employees to database
                 employeeRepository.saveAll(empList);
             } catch (IOException e) {
 
