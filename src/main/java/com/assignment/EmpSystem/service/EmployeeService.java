@@ -1,11 +1,11 @@
 package com.assignment.EmpSystem.service;
 
-import com.assignment.EmpSystem.dto.request.PostEmployeeRequestBody;
-import com.assignment.EmpSystem.model.Employee;
+import com.assignment.EmpSystem.dto.response.SubmissionResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public interface EmployeeService {
-    ResponseEntity submitEmployee(PostEmployeeRequestBody postEmployeeRequestBody);
+    ResponseEntity<SubmissionResponse> submitCSV(MultipartFile multipartFile);
 }
