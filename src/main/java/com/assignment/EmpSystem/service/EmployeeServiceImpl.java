@@ -1,5 +1,6 @@
 package com.assignment.EmpSystem.service;
 
+import com.assignment.EmpSystem.dto.response.GetEmployeeListResponse;
 import com.assignment.EmpSystem.dto.response.SubmissionResponse;
 import com.assignment.EmpSystem.exception.IncorrectFormatException;
 import com.assignment.EmpSystem.model.Employee;
@@ -18,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,7 +31,6 @@ public class EmployeeServiceImpl implements EmployeeService{
     EmployeeRepository employeeRepository;
 
     private static final Logger logger = LoggerFactory.getLogger(EmployeeServiceImpl.class);
-    private Integer numOfRows;
 
     private static boolean checkSalaryFormatMoreThanOneDecimal (CSVRecord csvRecord) throws IncorrectFormatException {
 
@@ -60,9 +61,14 @@ public class EmployeeServiceImpl implements EmployeeService{
 
     @Override
     public ResponseEntity<SubmissionResponse> submitCSV(MultipartFile multipartFile) {
+        int numberOfRows = 0;
         ResponseEntity<SubmissionResponse> responseEntity = null;
+        List<String> ids = new ArrayList<>();
+        List<String> logins = new ArrayList<>();
+        List<Employee> empList = new ArrayList<>();
+
         try (
-                BufferedReader fileReader = new BufferedReader(new InputStreamReader(multipartFile.getInputStream(), "UTF-8"));
+                BufferedReader fileReader = new BufferedReader(new InputStreamReader(multipartFile.getInputStream(), StandardCharsets.UTF_8));
                 CSVParser csvParser = new CSVParser(fileReader, CSVFormat.DEFAULT.builder()
                                                                                 .setHeader()
                                                                                 .setSkipHeaderRecord(true)
@@ -73,10 +79,8 @@ public class EmployeeServiceImpl implements EmployeeService{
                 if (csvRecords.size() == 0) {
                     throw new IncorrectFormatException(HttpStatus.BAD_REQUEST, "Uploaded File has no entries");
                 }
-                Iterable<CSVRecord> records = csvRecords;
 
-                List<Employee> empList = new ArrayList<>();
-                for (CSVRecord record : records) {
+                for (CSVRecord record : csvRecords) {
 
                     //Validation: Check if there are 4 columns in the row
                     if (record.toMap().values().size() != 4) {
@@ -87,35 +91,72 @@ public class EmployeeServiceImpl implements EmployeeService{
                             record.get("id"),
                             record.get("login"),
                             record.get("name"),
-                            Double.parseDouble(record.get("salary"))
+                            record.get("salary")
                     );
                     //Validation: Check if row starts with "#"
                     if (record.get("id").contains("#")) {
-                        throw new IncorrectFormatException(HttpStatus.BAD_REQUEST, "Incorrect Format (row starts with #) Please double check your record at Row : " + record.getRecordNumber() + " " + record.toMap().values());
+                        continue;
                     }
+
+                    //Validation: Check if current id and login already exists in previous rows
+                    if (ids.contains(record.get("id")) || logins.contains(record.get("login"))) {
+                        throw new IncorrectFormatException(HttpStatus.BAD_REQUEST, "Id or Login already exists Please double check your record at Row : " + record.getRecordNumber() + " " + record.toMap().values());
+                    } else {
+                        ids.add(record.get("id"));
+                        logins.add(record.get("login"));
+                    }
+
                     //Validation: Salary
                     checkSalaryFormatMoreThanOneDecimal(record);
 
-                    //If all validations pass adds employee to employee list
-                    empList.add(emp);
+                    //Validation: If ID exists in Database, check if Login exists in Database before adding to List
+                    Employee empCheckID = employeeRepository.findById(record.get("id"));
+                    if (empCheckID != null) {
+                        Employee empCheckLogin = employeeRepository.findBylogin(record.get("login"));
+                        //Validation: This means that User wants to update his Login and other info.
+                        if (empCheckLogin == null) {
+                            employeeRepository.setNewUserInfo(record.get("id"), record.get("login"), record.get("name"), Double.parseDouble(record.get("salary")));
+                            numberOfRows++;
+                            //Validation: This means that User just wants to update his name and salary.
+                        } else if (empCheckLogin.getId() == empCheckID.getId()) {
+                            employeeRepository.setNewUserInfo(record.get("id"), record.get("login"), record.get("name"), Double.parseDouble(record.get("salary")));
+                            numberOfRows++;
+                        } else {
+                            //Validation: Throws error if login is taken by another user.
+                            throw new IncorrectFormatException(HttpStatus.BAD_REQUEST, "Login has has already been taken by another user");
+                        }
+                    } else {
+                        empList.add(emp);
+                    }
                 }
-                numOfRows = empList.size();
+                numberOfRows = empList.size() + numberOfRows;
 
                 //Add all employees to database
                 employeeRepository.saveAll(empList);
             } catch (IOException e) {
 
-//            } catch() {
 
             } catch (IncorrectFormatException e) {
                 String errorMessage = e.getErrorMessage();
                 responseEntity = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new SubmissionResponse(errorMessage));
                 return responseEntity;
-            }
+                }
+//            } catch (ConstraintViolationException e) {
+//                String errorMessage = e.getMessage();
+//                responseEntity = ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new SubmissionResponse(errorMessage));
+//                return  responseEntity;
+//            }
 
 
-        String message = "Succesfully submitted CSV file. Rows Updated: " + this.numOfRows;
+        String message = "Succesfully submitted CSV file. Rows Updated: " + numberOfRows;
         responseEntity = ResponseEntity.ok().body(new SubmissionResponse(message));
+        return responseEntity;
+    }
+
+    public ResponseEntity<GetEmployeeListResponse> getEmployeeList() {
+        List<Employee> employeeList = employeeRepository.findAll();
+        ResponseEntity<GetEmployeeListResponse> responseEntity = null;
+        responseEntity = ResponseEntity.ok().body(new GetEmployeeListResponse(employeeList));
         return responseEntity;
     }
 }
